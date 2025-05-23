@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - sqlite-data:/app/data
+    working_dir: /app
+    stdin_open: true
+    tty: true
+    command: ["go", "run", "./cmd"]
+    environment:
+      - DB_PATH=/app/data/parkinglot.db
+
+volumes:
+  sqlite-data:
