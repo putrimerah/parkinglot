@@ -30,6 +30,7 @@ Clone the repo and install dependencies:
 git clone https://github.com/your-username/parkinglot
 cd parkinglot
 go mod tidy
+```
 
 ## 💻 CLI Commands
 
