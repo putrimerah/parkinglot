@@ -19,27 +19,23 @@ func NewUseCases(lot *entity.ParkingLot, repo entity.ParkingRepository) *UseCase
 // EnterVehicle assigns an available spot and saves it to the repo
 func (uc *UseCases) EnterVehicle(vehicleType entity.VehicleType, vehicleID string) error {
 	vehicle := entity.Vehicle{ID: vehicleID, Type: vehicleType}
+
 	spot := uc.lot.FindAvailableSpot(vehicleType)
 	if spot == nil {
 		return errors.New("no available spot")
 	}
 
-	spot.Lock()
-	defer spot.Unlock()
-
-	if spot.Occupied {
-		return errors.New("spot was taken in a race condition")
-	}
-
-	spot.Occupied = true
-
+	// No need to check if already occupied — FindAvailableSpot() guaranteed it
 	err := uc.repo.SaveVehicle(vehicle, spot)
 	if err != nil {
+		// rollback in memory
+		spot.Lock()
 		spot.Occupied = false
+		spot.Unlock()
 		return fmt.Errorf("failed to persist vehicle: %w", err)
 	}
 
-	fmt.Printf("Vehicle %s parked at [%d,%d]\n", vehicleID, spot.Row, spot.Col)
+	fmt.Printf("Vehicle %s parked at [%d,%d]\n", vehicle.ID, spot.Row, spot.Col)
 	return nil
 }
 
