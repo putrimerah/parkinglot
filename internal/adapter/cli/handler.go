@@ -29,12 +29,8 @@ func Run() {
 	usecases := usecase.NewUseCases(lot, repo)
 
 	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Println("vehicle types: bicycle, motorcycle, automobile")
-	fmt.Println("CLI started. Commands:")
-	fmt.Println("enter <vehicle_type> <vehicle_id>")
-	fmt.Println("exit <vehicle_id>")
-	fmt.Println("status")
-	fmt.Println("quit")
+	fmt.Println("vehicle types: bicycle, motorcycle, automobile\nCLI started. Commands:\nenter <vehicle_type> <vehicle_id>\nexit <vehicle_id>\nstatus\nquit")
+
 	for {
 		fmt.Print("> ")
 		if !scanner.Scan() {
