@@ -3,64 +3,69 @@ package usecase
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	"parkinglot/internal/entity"
 )
 
 type UseCases struct {
-	lot  *entity.ParkingLot
-	repo entity.ParkingRepository
+	lot             *entity.ParkingLot
+	repo            entity.ParkingRepository
+	vehicleRegistry sync.Map
 }
 
 func NewUseCases(lot *entity.ParkingLot, repo entity.ParkingRepository) *UseCases {
 	return &UseCases{lot: lot, repo: repo}
 }
 
-// EnterVehicle assigns an available spot and saves it to the repo
-func (uc *UseCases) EnterVehicle(vehicleType entity.VehicleType, vehicleID string) error {
+func (uc *UseCases) Park(vehicleType entity.VehicleType, vehicleID string) (string, error) {
 	vehicle := entity.Vehicle{ID: vehicleID, Type: vehicleType}
 
-	spot := uc.lot.FindAvailableSpot(vehicleType)
-	if spot == nil {
-		return errors.New("no available spot")
-	}
+	for spotID, spot := range uc.lot.Spots {
+		if spot.VehicleType == vehicleType && spot.Active {
+			spot.Lock()
+			if !spot.Occupied {
+				spot.Occupied = true
+				spot.VehicleID = vehicleID
+				spot.Unlock()
 
-	// No need to check if already occupied — FindAvailableSpot() guaranteed it
-	err := uc.repo.SaveVehicle(vehicle, spot)
-	if err != nil {
-		// rollback in memory
-		spot.Lock()
-		spot.Occupied = false
-		spot.Unlock()
-		return fmt.Errorf("failed to persist vehicle: %w", err)
-	}
+				// Save to DB if needed
+				_ = uc.repo.SaveVehicle(vehicle, spot)
 
-	fmt.Printf("Vehicle %s parked at [%d,%d]\n", vehicle.ID, spot.Row, spot.Col)
-	return nil
+				// Track last known location
+				uc.vehicleRegistry.Store(vehicleID, spotID)
+
+				return spotID, nil
+			}
+			spot.Unlock()
+		}
+	}
+	return "", errors.New("no available spot")
 }
 
-// ExitVehicle releases a spot and removes the vehicle from the repo
-func (uc *UseCases) ExitVehicle(vehicleID string) error {
-	spot, err := uc.repo.GetVehicleSpot(vehicleID)
-	if err != nil {
-		return fmt.Errorf("could not find vehicle: %w", err)
+func (uc *UseCases) Unpark(spotID, vehicleID string) error {
+	spot, ok := uc.lot.Spots[spotID]
+	if !ok {
+		return fmt.Errorf("spot %s not found", spotID)
 	}
 
-	memSpot := uc.lot.GetSpot(spot.Row, spot.Col)
-	if memSpot == nil {
-		return errors.New("spot not found in memory")
+	spot.Lock()
+	defer spot.Unlock()
+
+	if !spot.Occupied || spot.VehicleID != vehicleID {
+		return errors.New("vehicle not found in this spot")
 	}
 
-	memSpot.Lock()
-	defer memSpot.Unlock()
+	// Mark as free
+	spot.Occupied = false
+	spot.VehicleID = ""
 
-	memSpot.Occupied = false
-	err = uc.repo.RemoveVehicle(vehicleID)
-	if err != nil {
-		return fmt.Errorf("failed to remove vehicle: %w", err)
-	}
+	// Update DB if needed
+	_ = uc.repo.RemoveVehicle(vehicleID)
 
-	fmt.Printf("Vehicle %s exited. Spot [%d,%d] is now free.\n", vehicleID, spot.Row, spot.Col)
+	// Track last known spot
+	uc.vehicleRegistry.Store(vehicleID, spotID)
+
 	return nil
 }
 
@@ -81,5 +86,22 @@ func (uc *UseCases) ShowStatus() {
 			status = "Occupied"
 		}
 		fmt.Printf("Spot [%d,%d] - %s (%s)\n", spot.Row, spot.Col, status, spot.VehicleType.String())
+	}
+}
+
+func (uc *UseCases) SearchVehicle(vehicleID string) {
+	if val, ok := uc.vehicleRegistry.Load(vehicleID); ok {
+		fmt.Printf("Vehicle %s was last seen at spot: %s\n", vehicleID, val.(string))
+	} else {
+		fmt.Printf("Vehicle %s not found.\n", vehicleID)
+	}
+}
+
+func (uc *UseCases) ShowAvailable(vehicleType entity.VehicleType) {
+	fmt.Printf("Available spots for %s:\n", vehicleType.String())
+	for id, spot := range uc.lot.Spots {
+		if spot.VehicleType == vehicleType && spot.Active && !spot.Occupied {
+			fmt.Println("-", id)
+		}
 	}
 }

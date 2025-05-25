@@ -19,17 +19,28 @@ func Run() {
 	}
 
 	repo := repository.NewSQLiteRepo(db)
-	spots, err := repo.LoadAllSpots()
-	if err != nil {
-		fmt.Println("Failed to load spots:", err)
-		return
+	config := map[string]string{
+		"0-0-0": "B-1",
+		"0-0-1": "M-1",
+		"1-0-0": "A-1",
+		"1-0-1": "M-1",
+		"2-0-0": "A-1",
+		"2-0-1": "M-1",
+		"0-1-1": "X-0",
 	}
 
-	lot := entity.NewParkingLotFromRepo(spots)
+	lot := entity.NewParkingLotFromConfig(config)
 	usecases := usecase.NewUseCases(lot, repo)
 
 	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Println("vehicle types: bicycle, motorcycle, automobile\nCLI started. Commands:\nenter <vehicle_type> <vehicle_id>\nexit <vehicle_id>\nstatus\nquit")
+	fmt.Println("vehicle types: bicycle, motorcycle, automobile")
+	fmt.Println("CLI started. Commands:")
+	fmt.Println("park <vehicle_type> <vehicle_id>")
+	fmt.Println("unpark <spot_id> <vehicle_id>")
+	fmt.Println("availableSpot <vehicle_type>")
+	fmt.Println("searchVehicle <vehicle_id>")
+	fmt.Println("status")
+	fmt.Println("quit")
 
 	for {
 		fmt.Print("> ")
@@ -43,9 +54,9 @@ func Run() {
 		}
 
 		switch args[0] {
-		case "enter":
+		case "park":
 			if len(args) != 3 {
-				fmt.Println("Usage: enter <vehicle_type> <vehicle_id>")
+				fmt.Println("Usage: park <vehicle_type> <vehicle_id>")
 				continue
 			}
 			vehicleType, err := entity.ParseVehicleType(args[1])
@@ -53,24 +64,43 @@ func Run() {
 				fmt.Println("Invalid vehicle type.")
 				continue
 			}
-			err = usecases.EnterVehicle(vehicleType, args[2])
+			spotID, err := usecases.Park(vehicleType, args[2]) // no floor
 			if err != nil {
 				fmt.Println("Error:", err)
+			} else {
+				fmt.Println("Parked at spot:", spotID)
 			}
 
-		case "exit":
-			if len(args) != 2 {
-				fmt.Println("Usage: exit <vehicle_id>")
+		case "unpark":
+			if len(args) != 3 {
+				fmt.Println("Usage: unpark <spot_id> <vehicle_id>")
 				continue
 			}
-			err := usecases.ExitVehicle(args[1])
+			err := usecases.Unpark(args[1], args[2])
 			if err != nil {
 				fmt.Println("Error:", err)
+			} else {
+				fmt.Println("Unparked successfully.")
 			}
-
+		case "availableSpot":
+			if len(args) != 2 {
+				fmt.Println("Usage: availableSpot <vehicle_type>")
+				continue
+			}
+			vehicleType, err := entity.ParseVehicleType(args[1])
+			if err != nil {
+				fmt.Println("Invalid vehicle type.")
+				continue
+			}
+			usecases.ShowAvailable(vehicleType)
+		case "searchVehicle":
+			if len(args) != 2 {
+				fmt.Println("Usage: searchVehicle <vehicle_id>")
+				continue
+			}
+			usecases.SearchVehicle(args[1])
 		case "status":
 			usecases.ShowStatus()
-
 		case "quit":
 			fmt.Println("Exiting.")
 			return
