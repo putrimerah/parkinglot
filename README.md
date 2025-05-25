@@ -6,11 +6,18 @@ A thread-safe, multi-floor parking lot system implemented in Go using Clean Arch
 
 ## 🚀 Features
 
-- Multiple vehicle types: 🚲 Bicycle, 🏍️ Motorcycle, 🚗 Automobile
-- Thread-safe vehicle entry/exit using `sync.Mutex`
+- Multiple floors, rows, and columns of parking spots
+- Supports spot types:
+  - `B-1` → Active Bicycle spot
+  - `M-1` → Active Motorcycle spot
+  - `A-1` → Active Automobile spot
+  - `X-0` → Inactive spot
+- Vehicle types: 🚲 Bicycle, 🏍️ Motorcycle, 🚗 Automobile
+- Spot ID format: `floor-row-col` (e.g., `1-0-2`)
+- Thread-safe parking via `sync.Mutex`
 - SQLite-backed persistence of parked vehicles
-- Auto-seeded parking spots on first run
-- CLI interface to simulate multiple gates
+- `sync.Map` used to store last known spot of each vehicle
+- CLI interface simulating multiple concurrent gates
 
 ---
 
@@ -36,15 +43,19 @@ go mod tidy
 
 These are the available commands you can run after starting the CLI:
 
-| Command                          | Description                                                  |
-|----------------------------------|--------------------------------------------------------------|
-| `enter <type> <vehicle_id>`     | Park a vehicle of a given type and ID                        |
-|                                  | _Example_: `enter bicycle B1`                                |
-| `exit <vehicle_id>`             | Free a parked vehicle’s spot by its vehicle ID               |
-|                                  | _Example_: `exit B1`                                         |
-| `status`                        | Show **all parking spots**, including occupied and inactive  |
-| `available`                     | Show only **free and active** spots across all vehicle types |
-| `quit`                          | Exit the CLI application                                     |
+| Command                                   | Description                                                            |
+|-------------------------------------------|------------------------------------------------------------------------|
+| `park <vehicle_type> <vehicle_id>`        | Park a vehicle of a given type in the first available spot             |
+|                                           | _Example_: `park bicycle B1`                                           |
+| `unpark <spot_id> <vehicle_id>`           | Free a parking spot by specifying the spot ID and the matching vehicle |
+|                                           | _Example_: `unpark 1-0-0 B1`                                           |
+| `availableSpot <vehicle_type>`            | Show only **free and active** spots for the specified vehicle type     |
+|                                           | _Example_: `availableSpot motorcycle`                                  |
+| `searchVehicle <vehicle_id>`              | Display the **last known spot** of the vehicle, even if already exited |
+|                                           | _Example_: `searchVehicle B1`                                          |
+| `status`                                  | Show **all parking spots**, including occupied and inactive            |
+| `quit`                                    | Exit the CLI application                                               |
+
 
 ### 🧠 Notes
 
@@ -53,3 +64,4 @@ These are the available commands you can run after starting the CLI:
   - `motorcycle`
   - `automobile`
 - `vehicle_id` should be unique per vehicle.
+- `spot_id` must follow the format `floor-row-col`, such as `2-0-1`.
